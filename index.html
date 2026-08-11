@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AnalystBot — AI Document Intelligence (100% Private)</title>
+<meta name="description" content="Upload documents and get consultant-grade analysis. Runs entirely in your browser — no API keys, no data leaves your device.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0B0F14;--sf:#141A22;--cd:#1A2233;--bd:#252F3F;--tx:#E5E7EB;--mt:#7B8794;--ac:#C9A962;--acD:rgba(201,169,98,0.12);--ok:#4ADE80;--err:#F87171;--blue:#60A5FA}
+body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--tx);min-height:100vh;display:flex;flex-direction:column}
+button{cursor:pointer;font-family:inherit}input,select{font-family:inherit}
+::selection{background:var(--ac);color:var(--bg)}
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:var(--sf)}::-webkit-scrollbar-thumb{background:var(--bd);border-radius:3px}
+
+.hdr{padding:14px 24px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:12px;background:var(--sf);position:sticky;top:0;z-index:50}
+.logo{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,var(--ac),#8B6914);display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:800;color:var(--bg)}
+.hdr-title{font-size:19px;font-weight:700}.hdr-title span{color:var(--ac)}
+.hdr-sub{font-size:11px;color:var(--mt);margin-top:2px;letter-spacing:0.3px;text-transform:uppercase}
+.hdr-right{margin-left:auto;display:flex;gap:8px;align-items:center}
+.badge{font-size:11px;padding:4px 10px;border-radius:12px;background:rgba(74,222,128,0.1);color:var(--ok);border:1px solid rgba(74,222,128,0.25);display:flex;align-items:center;gap:4px}
+
+.btn{padding:10px 22px;border-radius:8px;border:none;font-weight:600;font-size:14px;transition:all 0.2s}
+.btn-p{background:var(--ac);color:var(--bg)}.btn-p:hover{filter:brightness(1.1)}.btn-p:disabled{opacity:0.4;cursor:not-allowed}
+.btn-g{background:var(--cd);color:var(--tx);border:1px solid var(--bd);padding:7px 14px;font-size:12px}.btn-g:hover{border-color:var(--ac);color:var(--ac)}
+
+.main{flex:1;display:flex;overflow:hidden}
+.content{flex:1;overflow-y:auto;padding:28px;display:flex;flex-direction:column;gap:22px}
+
+.setup{max-width:600px;margin:0 auto;padding:60px 20px;text-align:center}
+.setup h1{font-size:32px;font-weight:800;margin-bottom:8px}.setup h1 span{color:var(--ac)}
+.setup .tagline{font-size:15px;color:var(--mt);margin-bottom:32px;line-height:1.6}
+.setup .privacy{display:inline-flex;align-items:center;gap:6px;background:rgba(74,222,128,0.08);border:1px solid rgba(74,222,128,0.2);padding:8px 16px;border-radius:20px;font-size:13px;color:var(--ok);margin-bottom:28px}
+.model-cards{display:flex;flex-direction:column;gap:10px;text-align:left;margin-bottom:24px}
+.model-card{padding:16px 18px;background:var(--cd);border:2px solid var(--bd);border-radius:10px;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;gap:14px}
+.model-card:hover{border-color:rgba(201,169,98,0.3)}
+.model-card.sel{border-color:var(--ac);background:var(--acD)}
+.model-card .radio{width:20px;height:20px;border-radius:50%;border:2px solid var(--bd);flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:all 0.2s}
+.model-card.sel .radio{border-color:var(--ac)}.model-card.sel .radio::after{content:'';width:10px;height:10px;border-radius:50%;background:var(--ac)}
+.model-card .info{flex:1}.model-card .name{font-weight:600;font-size:14px;margin-bottom:2px}.model-card .desc{font-size:12px;color:var(--mt);line-height:1.4}
+.model-card .size{font-size:11px;color:var(--ac);font-weight:600;white-space:nowrap}
+.progress-area{margin:20px 0;display:none}
+.progress-bar{width:100%;height:8px;background:var(--bd);border-radius:4px;overflow:hidden}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--ac),#E0C97A);border-radius:4px;transition:width 0.3s;width:0}
+.progress-text{font-size:12px;color:var(--mt);margin-top:6px}
+.webgpu-err{background:rgba(248,113,113,0.08);border:1px solid rgba(248,113,113,0.2);border-radius:10px;padding:18px;text-align:left;margin-bottom:20px}
+.webgpu-err h3{color:var(--err);font-size:14px;margin-bottom:6px}.webgpu-err p{font-size:13px;color:var(--mt);line-height:1.5}
+
+.dz{border:2px dashed var(--bd);border-radius:14px;padding:52px 24px;text-align:center;cursor:pointer;transition:all 0.3s}
+.dz:hover,.dz.over{border-color:var(--ac);background:rgba(201,169,98,0.04)}
+.flist{display:flex;flex-direction:column;gap:8px}
+.flabel{font-size:12px;font-weight:700;color:var(--mt);text-transform:uppercase;letter-spacing:1px}
+.fchip{display:flex;align-items:center;gap:10px;padding:11px 14px;background:var(--cd);border-radius:8px;border:1px solid var(--bd)}
+.fchip-info{flex:1;min-width:0}.fchip-name{font-size:14px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fchip-meta{font-size:11px;color:var(--mt);margin-top:2px}.fchip-meta .ok{color:var(--ok)}
+.fchip-x{background:none;border:none;color:var(--mt);font-size:18px;padding:4px}.fchip-x:hover{color:var(--err)}
+
+.card{background:var(--cd);border-radius:12px;border:1px solid var(--bd);overflow:hidden}
+.card-hd{padding:14px 20px;border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between}
+.card-hd-l{display:flex;align-items:center;gap:8px}.card-hd-l .ic{color:var(--ac);font-size:17px}.card-hd-l .lb{font-weight:700;font-size:15px}
+.card-hd-r{font-size:11px;color:var(--mt)}
+.card-body{padding:22px;font-size:14px;line-height:1.8;color:#D1D5DB}
+
+.brief h2{color:var(--ac);font-size:17px;font-weight:700;margin:24px 0 8px;padding-bottom:6px;border-bottom:1px solid var(--bd)}
+.brief h3{color:var(--tx);font-size:14px;font-weight:700;margin:16px 0 4px}
+.brief ul{padding-left:20px;margin:6px 0}.brief li{margin:3px 0}.brief li::marker{color:var(--ac)}
+.brief table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13px}
+.brief th{padding:8px 12px;border-bottom:2px solid var(--ac);text-align:left;color:var(--ac);font-weight:600}
+.brief td{padding:7px 12px;border-bottom:1px solid var(--bd)}
+.brief strong{color:#fff}.brief p{margin:2px 0}
+.cite{background:var(--acD);color:var(--ac);padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;cursor:pointer;margin:0 1px;border:1px solid rgba(201,169,98,0.2);display:inline-block;transition:all 0.15s;white-space:nowrap;vertical-align:middle;line-height:18px}
+.cite:hover{background:var(--ac);color:var(--bg)}
+
+.chat-msgs{flex:1;padding:20px;display:flex;flex-direction:column;gap:12px;max-height:450px;overflow-y:auto}
+.bub{max-width:82%;padding:12px 16px;border-radius:12px;line-height:1.7;font-size:14px;word-wrap:break-word}
+.bub.usr{align-self:flex-end;background:rgba(201,169,98,0.13);border:1px solid rgba(201,169,98,0.26);border-bottom-right-radius:2px}
+.bub.bot{align-self:flex-start;background:var(--cd);border:1px solid var(--bd);border-bottom-left-radius:2px}
+.bub.bot table{width:100%;border-collapse:collapse;margin:10px 0;font-size:12px}
+.bub.bot th{padding:6px 10px;border-bottom:2px solid var(--ac);text-align:left;color:var(--ac);font-weight:600}
+.bub.bot td{padding:5px 10px;border-bottom:1px solid var(--bd)}
+.bub.bot h2{color:var(--ac);font-size:15px;margin:14px 0 4px;padding-bottom:4px;border-bottom:1px solid var(--bd)}
+.bub.bot h3{font-size:13px;margin:10px 0 2px}.bub.bot ul{padding-left:18px;margin:4px 0}.bub.bot strong{color:#fff}
+.chat-row{padding:12px 16px;border-top:1px solid var(--bd);display:flex;gap:8px}
+.chat-in{flex:1;background:var(--sf);border:1px solid var(--bd);border-radius:8px;padding:10px 14px;color:var(--tx);font-size:14px;outline:none}
+.chat-in:focus{border-color:var(--ac)}
+.sugs{display:flex;flex-wrap:wrap;gap:8px}
+.sug{padding:8px 14px;background:var(--sf);border:1px solid var(--bd);border-radius:20px;color:var(--mt);font-size:12px;transition:all 0.2s}
+.sug:hover{border-color:var(--ac);color:var(--ac)}
+
+.sb{width:0;min-width:0;overflow:hidden;background:var(--sf);transition:all 0.3s;display:flex;flex-direction:column}
+.sb.open{width:460px;min-width:460px;border-left:1px solid var(--bd)}
+.sb-hdr{padding:14px 20px;border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.sb-tabs{display:flex;border-bottom:1px solid var(--bd);flex-shrink:0;overflow-x:auto}
+.sb-tab{padding:8px 14px;background:transparent;border:none;border-bottom:2px solid transparent;color:var(--mt);font-size:11px;font-weight:600;cursor:pointer}
+.sb-tab.act{background:var(--cd);border-bottom-color:var(--ac);color:var(--ac)}
+.sb-body{flex:1;overflow:auto;padding:20px}
+.sb-body pre{font-family:'IBM Plex Mono',monospace;font-size:12.5px;line-height:1.7;color:#D1D5DB;white-space:pre-wrap;word-break:break-word;margin:0}
+
+.err-box{color:var(--err);font-size:13px;padding:10px 14px;background:rgba(248,113,113,0.07);border-radius:8px;border:1px solid rgba(248,113,113,0.2)}
+.spinner{display:inline-block;width:42px;height:42px;border:3px solid var(--bd);border-top-color:var(--ac);border-radius:50%;animation:spin 0.8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+.stream-cursor::after{content:'▊';color:var(--ac);animation:pulse 0.8s infinite}
+
+@media(max-width:768px){
+  .sb.open{width:100%;min-width:100%;position:fixed;top:0;left:0;right:0;bottom:0;z-index:90}
+  .content{padding:16px}.bub{max-width:95%}.setup{padding:30px 16px}.setup h1{font-size:24px}
+}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div class="logo">A</div>
+  <div><div class="hdr-title">Analyst<span>Bot</span></div><div class="hdr-sub">AI-Powered Document Intelligence</div></div>
+  <div class="hdr-right">
+    <div class="badge" id="statusBadge" style="display:none">🔒 100% Private</div>
+    <button class="btn btn-g" onclick="resetSession()" id="resetBtn" style="display:none">New Session</button>
+  </div>
+</div>
+
+<div class="main">
+  <div class="content">
+
+    <!-- SETUP -->
+    <div id="phaseSetup" class="setup">
+      <h1>Analyst<span>Bot</span></h1>
+      <p class="tagline">Consultant-grade document analysis powered by AI running<br><strong>entirely in your browser</strong>. No API keys. No cost. No data leaves your device.</p>
+      <div class="privacy">🔒 100% Private — documents never leave your browser</div>
+
+      <div id="webgpuErr" class="webgpu-err" style="display:none">
+        <h3>⚠️ WebGPU Not Available</h3>
+        <p>Your browser doesn't support WebGPU, needed for local AI. Use <strong>Google Chrome 113+</strong> or <strong>Microsoft Edge 113+</strong>.</p>
+      </div>
+
+      <div id="modelSection">
+        <p style="font-size:13px;color:var(--mt);margin-bottom:14px;text-align:left">Choose a model size based on your device:</p>
+        <div class="model-cards">
+          <div class="model-card" data-model="Llama-3.2-1B-Instruct-q4f16_1-MLC" data-ctx="8000" onclick="selModel(this)">
+            <div class="radio"></div>
+            <div class="info"><div class="name">⚡ Fast — Llama 3.2 1B</div><div class="desc">Quick analysis, works on any GPU. Best for short documents.</div></div>
+            <div class="size">~700 MB</div>
+          </div>
+          <div class="model-card sel" data-model="Llama-3.2-3B-Instruct-q4f16_1-MLC" data-ctx="8000" onclick="selModel(this)">
+            <div class="radio"></div>
+            <div class="info"><div class="name">⚖️ Balanced — Llama 3.2 3B</div><div class="desc">Good quality analysis with reasonable speed. Recommended for most.</div></div>
+            <div class="size">~1.8 GB</div>
+          </div>
+          <div class="model-card" data-model="Phi-3.5-mini-instruct-q4f16_1-MLC" data-ctx="32000" onclick="selModel(this)">
+            <div class="radio"></div>
+            <div class="info"><div class="name">🧠 Best — Phi 3.5 Mini</div><div class="desc">Highest quality. Needs decent GPU (4GB+ VRAM). Handles long documents.</div></div>
+            <div class="size">~2.2 GB</div>
+          </div>
+        </div>
+
+        <div class="progress-area" id="progressArea">
+          <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+          <div class="progress-text" id="progressText">Preparing...</div>
+        </div>
+
+        <button class="btn btn-p" style="width:100%;padding:16px;font-size:16px" id="loadBtn" onclick="loadModel()">
+          🚀 Download & Start
+        </button>
+        <p style="font-size:11px;color:var(--mt);margin-top:10px">Model is cached after first download — loads instantly next time</p>
+      </div>
+    </div>
+
+    <!-- UPLOAD -->
+    <div id="phaseUpload" style="display:none">
+      <div class="dz" id="dropzone" onclick="document.getElementById('fileInput').click()">
+        <div style="font-size:44px;margin-bottom:14px">📂</div>
+        <div style="font-size:17px;font-weight:600;margin-bottom:6px">Drop documents here or <span style="color:var(--ac);text-decoration:underline">browse</span></div>
+        <div style="font-size:13px;color:var(--mt)">PDF, DOCX, XLSX, CSV, TXT — up to 5 files</div>
+      </div>
+      <input type="file" id="fileInput" multiple accept=".pdf,.docx,.xlsx,.xls,.csv,.txt,.pptx" style="display:none"/>
+      <div id="statusLine" style="font-size:13px;color:var(--ac);display:none"></div>
+      <div class="flist" id="fileList" style="display:none"><div class="flabel" id="fileCnt"></div><div id="fileChips"></div></div>
+      <div id="errBox" class="err-box" style="display:none"></div>
+      <button class="btn btn-p" style="width:100%;padding:15px;font-size:15px;display:none" id="analyzeBtn" onclick="analyze()">⚡ Analyze Documents (runs locally)</button>
+    </div>
+
+    <!-- BRIEFING -->
+    <div id="phaseBrief" style="display:none">
+      <div class="card">
+        <div class="card-hd"><div class="card-hd-l"><span class="ic">◆</span><span class="lb">Executive Briefing</span></div><div class="card-hd-r" id="briefMeta"></div></div>
+        <div class="card-body brief" id="briefBody"></div>
+      </div>
+      <button class="btn btn-p" id="chatStartBtn" onclick="startChat()" style="align-self:flex-start">💬 Ask Follow-up Questions</button>
+    </div>
+
+    <!-- CHAT -->
+    <div id="phaseChat" style="display:none">
+      <div class="card" style="display:flex;flex-direction:column;min-height:320px">
+        <div class="card-hd"><div class="card-hd-l"><span class="ic">💬</span><span class="lb">Ask the Analyst</span></div></div>
+        <div class="chat-msgs" id="chatMsgs"><div style="text-align:center;padding:24px;color:var(--mt);font-size:13px">Ask anything about your documents. Runs locally on your device.</div></div>
+        <div class="chat-row">
+          <input class="chat-in" id="chatIn" placeholder="Ask about financials, strategy, risks..." onkeydown="if(event.key==='Enter'&&!event.shiftKey)sendChat()"/>
+          <button class="btn btn-p" onclick="sendChat()" style="padding:10px 20px">Send</button>
+        </div>
+      </div>
+      <div class="sugs" id="sugBox">
+        <button class="sug" onclick="useSug(this)">What are the key financial metrics?</button>
+        <button class="sug" onclick="useSug(this)">What is the growth trajectory?</button>
+        <button class="sug" onclick="useSug(this)">What are the biggest risks?</button>
+        <button class="sug" onclick="useSug(this)">Summarize the competitive landscape</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SIDEBAR -->
+  <div class="sb" id="sidebar">
+    <div class="sb-hdr">
+      <div style="display:flex;align-items:center;gap:8px;min-width:0">
+        <span id="sbIcon" style="font-size:20px"></span>
+        <div style="min-width:0"><div id="sbName" style="font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div><div id="sbMeta" style="font-size:11px;color:var(--mt)"></div></div>
+      </div>
+      <button onclick="closeSB()" style="background:none;border:none;color:var(--mt);font-size:20px;cursor:pointer">✕</button>
+    </div>
+    <div class="sb-tabs" id="sbTabs"></div>
+    <div class="sb-body"><pre id="sbText"></pre></div>
+  </div>
+</div>
+
+<!-- ALL CODE IN A REGULAR SCRIPT — no module scoping issues -->
+<script>
+// ─── Helpers ───
+const $=id=>document.getElementById(id);
+const ICONS={pdf:'📄',docx:'📝',xlsx:'📊',xls:'📊',csv:'📋',txt:'📃',pptx:'📽️'};
+const getExt=n=>n.split('.').pop().toLowerCase();
+const getIc=t=>ICONS[t]||'📎';
+const fmtSz=b=>b<1024?b+' B':b<1048576?(b/1024).toFixed(1)+' KB':(b/1048576).toFixed(1)+' MB';
+
+// ─── State ───
+let engine=null, docs=[], briefText='', chatHist=[], activeSB=-1, generating=false;
+let selModelId='Llama-3.2-3B-Instruct-q4f16_1-MLC', selCtx=8000;
+
+// ─── PDF.js ───
+pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+// ─── WebGPU check ───
+if(!navigator.gpu){$('webgpuErr').style.display='block';$('loadBtn').disabled=true;$('loadBtn').textContent='WebGPU Required'}
+
+// ─── Model selection (regular function — available immediately) ───
+function selModel(el){
+  document.querySelectorAll('.model-card').forEach(c=>c.classList.remove('sel'));
+  el.classList.add('sel');
+  selModelId=el.dataset.model;
+  selCtx=parseInt(el.dataset.ctx)||8000;
+}
+
+// ─── Load model (dynamic import — only fetches WebLLM when user clicks) ───
+async function loadModel(){
+  const btn=$('loadBtn');
+  btn.disabled=true;btn.textContent='Loading WebLLM library...';
+  $('progressArea').style.display='block';
+  $('progressText').textContent='Downloading AI library...';
+
+  try{
+    // Dynamic import — only loads WebLLM when needed
+    const webllm = await import('https://esm.run/@mlc-ai/web-llm');
+
+    btn.textContent='Downloading model...';
+    $('progressText').textContent='Downloading model weights...';
+
+    engine = await webllm.CreateMLCEngine(selModelId,{
+      initProgressCallback:(report)=>{
+        const pct=Math.round((report.progress||0)*100);
+        $('progressFill').style.width=pct+'%';
+        $('progressText').textContent=report.text||('Loading... '+pct+'%');
+      }
+    });
+
+    // Success — switch to upload phase
+    $('phaseSetup').style.display='none';
+    $('phaseUpload').style.display='flex';
+    $('phaseUpload').style.flexDirection='column';
+    $('phaseUpload').style.gap='22px';
+    $('statusBadge').style.display='flex';
+
+  }catch(err){
+    console.error('Model load error:', err);
+    $('progressText').textContent='❌ Failed: '+err.message;
+    $('progressText').style.color='var(--err)';
+    btn.disabled=false;
+    btn.textContent='🚀 Retry Download';
+  }
+}
+
+// ─── File processing ───
+async function processPDF(file,onSt){
+  const buf=await file.arrayBuffer();
+  const pdf=await pdfjsLib.getDocument({data:buf}).promise;
+  let text='';
+  for(let i=1;i<=pdf.numPages;i++){
+    if(onSt)onSt('Page '+i+'/'+pdf.numPages);
+    const pg=await pdf.getPage(i);
+    const tc=await pg.getTextContent();
+    text+='\n--- Page '+i+' ---\n'+tc.items.map(function(x){return x.str}).join(' ')+'\n';
+  }
+  return text||'[No text]';
+}
+
+async function processFile(file,onSt){
+  var e=getExt(file.name);
+  try{
+    if(e==='pdf') return await processPDF(file,onSt);
+    if(e==='docx'){var b=await file.arrayBuffer();var r=await mammoth.extractRawText({arrayBuffer:b});return r.value||'[No text]'}
+    if(e==='xlsx'||e==='xls'){var b2=await file.arrayBuffer();var w=XLSX.read(b2,{type:'array'});var t='';w.SheetNames.forEach(function(n){t+='=== '+n+' ===\n'+XLSX.utils.sheet_to_csv(w.Sheets[n])+'\n\n'});return t||'[No data]'}
+    return await file.text();
+  }catch(err){return'[Error: '+err.message+']'}
+}
+
+// ─── Upload handling ───
+var dz=$('dropzone'), fi=$('fileInput');
+dz.addEventListener('dragover',function(e){e.preventDefault();dz.classList.add('over')});
+dz.addEventListener('dragleave',function(){dz.classList.remove('over')});
+dz.addEventListener('drop',function(e){e.preventDefault();dz.classList.remove('over');handleFiles(e.dataTransfer.files)});
+fi.addEventListener('change',function(e){handleFiles(e.target.files);e.target.value=''});
+
+async function handleFiles(files){
+  hideErr();
+  var ok=['pdf','docx','xlsx','xls','csv','txt','pptx'];
+  var arr=Array.from(files).filter(function(f){return ok.indexOf(getExt(f.name))!==-1});
+  if(!arr.length) return showErr('No supported files.');
+  if(docs.length+arr.length>5) return showErr('Max 5 documents.');
+  for(var i=0;i<arr.length;i++){
+    var f=arr[i];
+    showSt('Processing: '+f.name+'...');
+    var text=await processFile(f,function(s){showSt(f.name+': '+s)});
+    docs.push({id:Date.now()+Math.random(),name:f.name,type:getExt(f.name),text:text,size:f.size});
+  }
+  hideSt();renderFiles();
+}
+
+function removeDoc(id){docs=docs.filter(function(d){return d.id!==id});renderFiles()}
+
+function renderFiles(){
+  var fl=$('fileList'),ch=$('fileChips'),ab=$('analyzeBtn');
+  if(!docs.length){fl.style.display='none';ab.style.display='none';return}
+  fl.style.display='flex';
+  $('fileCnt').textContent='Uploaded ('+docs.length+'/5)';
+  ch.innerHTML=docs.map(function(d){
+    var ok=d.text&&d.text[0]!=='[';
+    var lbl=d.text.length>1000?Math.round(d.text.length/1000)+'k chars':d.text.length+' chars';
+    return '<div class="fchip"><span style="font-size:24px">'+getIc(d.type)+'</span><div class="fchip-info"><div class="fchip-name">'+d.name+'</div><div class="fchip-meta">'+d.type.toUpperCase()+' · '+fmtSz(d.size)+(ok?' <span class="ok">✓ Text ('+lbl+')</span>':' <span style="color:var(--ac)">⚠ Limited</span>')+'</div></div><button class="fchip-x" onclick="removeDoc('+d.id+')">✕</button></div>';
+  }).join('');
+  ab.style.display='block';
+}
+
+// ─── Truncation ───
+function getDocContext(){
+  var budget=Math.floor(selCtx*2.5);
+  var total=docs.reduce(function(s,d){return s+d.text.length},0);
+  var ctx='';
+  docs.forEach(function(d,i){
+    var share=total<=budget?d.text.length:Math.floor(budget*(d.text.length/total));
+    var lim=Math.min(share,20000);
+    var tt=d.text.length>lim?d.text.slice(0,lim)+'\n...[truncated]':d.text;
+    ctx+='\nDOCUMENT '+(i+1)+': "'+d.name+'" ('+d.type.toUpperCase()+')\n'+tt+'\n---\n';
+  });
+  return ctx;
+}
+
+// ─── Streaming generation ───
+async function streamGenerate(messages,targetEl,onDone){
+  generating=true;
+  var fullText='';
+  try{
+    var stream=await engine.chat.completions.create({messages:messages,max_tokens:3000,temperature:0.4,stream:true});
+    for await(var chunk of stream){
+      var delta=chunk.choices[0]&&chunk.choices[0].delta?chunk.choices[0].delta.content:'';
+      if(delta){fullText+=delta;targetEl.innerHTML=renderCited(fullText)+'<span class="stream-cursor"></span>'}
+    }
+    targetEl.innerHTML=renderCited(fullText);
+  }catch(err){
+    fullText='⚠️ Generation error: '+err.message;
+    targetEl.innerHTML=fullText;
+  }
+  generating=false;
+  if(onDone)onDone(fullText);
+  return fullText;
+}
+
+// ─── Analysis ───
+var SYS_A='You are a senior management consultant analyzing documents. Be specific and cite sources using [[n]] format where n is the document number.\n\nStructure your analysis:\n## Executive Summary\n## Financial Highlights\nKey revenue, margins, growth metrics with [[n]] citations.\n## Strategic Assessment\nBusiness model, competitive position, growth strategy.\n## SWOT Analysis\nStrengths, Weaknesses, Opportunities, Threats.\n## Risks\nKey risks rated High/Medium/Low.\n## Key Takeaways\nBull case and bear case points.\n\nUse **bold** for key figures. Cite every claim with [[n]].';
+
+var SYS_C='You are a senior management consultant. Answer based ONLY on the provided documents. Cite claims with [[n]]. If not in documents, say so.';
+
+async function analyze(){
+  if(!engine||generating)return;
+  hideErr();$('analyzeBtn').style.display='none';
+  var ctx=getDocContext();
+
+  // Switch to briefing view with streaming
+  $('phaseUpload').style.display='none';
+  $('phaseBrief').style.display='flex';$('phaseBrief').style.flexDirection='column';$('phaseBrief').style.gap='22px';
+  $('briefMeta').textContent=docs.length+' doc'+(docs.length!==1?'s':'')+' · Streaming locally...';
+  $('resetBtn').style.display='block';
+
+  var body=$('briefBody');
+  body.innerHTML='<span style="color:var(--mt);animation:pulse 1.5s infinite">Starting analysis...</span>';
+
+  var messages=[
+    {role:'system',content:SYS_A},
+    {role:'user',content:ctx+'\nAnalyze all '+docs.length+' document(s) thoroughly. Cite every claim with [[n]].'}
+  ];
+
+  briefText=await streamGenerate(messages,body,function(){
+    $('briefMeta').textContent=docs.length+' doc'+(docs.length!==1?'s':'')+' analyzed · Click citations to view source';
+  });
+}
+
+// ─── Chat ───
+function startChat(){$('chatStartBtn').style.display='none';$('phaseChat').style.display='block';$('chatIn').focus()}
+
+async function sendChat(){
+  var msg=$('chatIn').value.trim();
+  if(!msg||generating)return;
+  $('chatIn').value='';
+  chatHist.push({role:'user',content:msg});
+  renderChat();
+
+  // Bot bubble for streaming
+  var el=$('chatMsgs');
+  var botBub=document.createElement('div');
+  botBub.className='bub bot';
+  botBub.innerHTML='<span style="color:var(--mt);animation:pulse 1.5s infinite">Thinking...</span>';
+  el.appendChild(botBub);el.scrollTop=el.scrollHeight;
+
+  var ctx=getDocContext();
+  var messages=[
+    {role:'system',content:SYS_C},
+    {role:'user',content:ctx+'\nBriefing:\n'+briefText},
+    {role:'assistant',content:'Ready to answer questions about these documents.'}
+  ].concat(chatHist);
+
+  var result=await streamGenerate(messages,botBub,function(){});
+  chatHist.push({role:'assistant',content:result});
+  el.scrollTop=el.scrollHeight;
+  $('chatIn').focus();
+  if(chatHist.length>1)$('sugBox').style.display='none';
+}
+
+function useSug(el){$('chatIn').value=el.textContent;$('chatIn').focus()}
+
+function renderChat(){
+  var el=$('chatMsgs');
+  el.innerHTML=chatHist.map(function(m){
+    return m.role==='user'
+      ?'<div class="bub usr">'+m.content.replace(/</g,'&lt;')+'</div>'
+      :'<div class="bub bot">'+renderCited(m.content)+'</div>';
+  }).join('');
+  el.scrollTop=el.scrollHeight;
+}
+
+// ─── Rendering ───
+function renderCited(text){
+  if(!text)return'';
+  var safe=text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  var lines=safe.split('\n');
+  var out=[],i=0;
+  while(i<lines.length){
+    var l=lines[i]||'';
+    if(l.trim().indexOf('|')===0&&lines[i+1]&&lines[i+1].indexOf('---')!==-1){
+      var tl=[];while(i<lines.length&&lines[i]&&lines[i].trim().indexOf('|')===0){tl.push(lines[i]);i++}
+      var rows=tl.filter(function(x){return x.indexOf('---')===-1}).map(function(x){return x.split('|').filter(function(c){return c.trim()}).map(function(c){return c.trim()})});
+      if(rows.length){var tb='<table><thead><tr>'+rows[0].map(function(c){return'<th>'+inl(c)+'</th>'}).join('')+'</tr></thead><tbody>';rows.slice(1).forEach(function(r){tb+='<tr>'+r.map(function(c){return'<td>'+inl(c)+'</td>'}).join('')+'</tr>'});out.push(tb+'</tbody></table>')}
+    }else{
+      if(l.indexOf('## ')===0)out.push('<h2>'+inl(l.slice(3))+'</h2>');
+      else if(l.indexOf('### ')===0)out.push('<h3>'+inl(l.slice(4))+'</h3>');
+      else if(l.indexOf('- ')===0)out.push('<li>'+inl(l.slice(2))+'</li>');
+      else if(!l.trim())out.push('<br>');
+      else out.push('<p style="margin:2px 0">'+inl(l)+'</p>');
+      i++;
+    }
+  }
+  var html=out.join('\n');
+  html=html.replace(/((?:<li>.*?<\/li>\n?)+)/g,'<ul>$1</ul>');
+  return html;
+}
+
+function inl(t){
+  return t.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').replace(/\[\[(\d+)\]\]/g,function(_,n){
+    var idx=parseInt(n)-1,d=docs[idx],nm=d?d.name:'Doc '+n,ic=d?getIc(d.type):'📎';
+    return'<span class="cite" onclick="openSB('+idx+')" title="View: '+nm+'">'+ic+' '+nm+'</span>';
+  });
+}
+
+// ─── Sidebar ───
+function openSB(idx){
+  if(idx<0||idx>=docs.length)return;activeSB=idx;
+  var d=docs[idx];
+  $('sbIcon').textContent=getIc(d.type);$('sbName').textContent=d.name;
+  $('sbMeta').textContent=d.type.toUpperCase()+' · '+fmtSz(d.size);
+  $('sbText').textContent=d.text;
+  $('sbTabs').innerHTML=docs.map(function(d,i){return'<button class="sb-tab '+(i===idx?'act':'')+'" onclick="openSB('+i+')">'+getIc(d.type)+' Doc '+(i+1)+'</button>'}).join('');
+  $('sidebar').classList.add('open');
+}
+function closeSB(){$('sidebar').classList.remove('open');activeSB=-1}
+
+// ─── Utils ───
+function showErr(m){$('errBox').textContent=m;$('errBox').style.display='block'}
+function hideErr(){$('errBox').style.display='none'}
+function showSt(m){$('statusLine').textContent=m;$('statusLine').style.display='block'}
+function hideSt(){$('statusLine').style.display='none'}
+function resetSession(){
+  docs=[];briefText='';chatHist=[];activeSB=-1;
+  $('phaseUpload').style.display='flex';$('phaseUpload').style.flexDirection='column';$('phaseUpload').style.gap='22px';
+  $('phaseBrief').style.display='none';$('phaseChat').style.display='none';
+  $('chatStartBtn').style.display='block';$('sugBox').style.display='flex';$('resetBtn').style.display='none';
+  $('sidebar').classList.remove('open');renderFiles();hideErr();
+}
+</script>
+</body>
+</html>
